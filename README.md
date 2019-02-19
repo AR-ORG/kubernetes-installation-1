@@ -10,9 +10,9 @@ Requirement -6 VM - ubuntu
 5.  loadbalancer - 1CPUx2GB
 6.  clientnode  - 1CPUx2GB
 
-##  Install client tools on clientnode
+##  Client Node (clientnode) steps
 
-      1.    Install cfssl -
+##    Install cfssl -
       
       curl -s -L -o /bin/cfssl https://pkg.cfssl.org/R1.2/cfssl_linux-amd64
       
@@ -23,7 +23,7 @@ Requirement -6 VM - ubuntu
       chmod +x /bin/cfssl*
       
           
-      2.    Install kubectl -
+##    Install kubectl -
       
       sudo apt-get update && sudo apt-get install -y apt-transport-https
 
@@ -33,11 +33,9 @@ Requirement -6 VM - ubuntu
 
       sudo apt-get update
       
-      sudo apt-get install -y kubectl
+      sudo apt-get install -y kubectl 
       
-      
-      
-      3.    Provision Certificate Authority
+##    Provision Certificate Authority
       
       Create 2 files - 
       
@@ -87,11 +85,9 @@ Requirement -6 VM - ubuntu
       ca.csr  -- CSR file
       
       
-      4.    Generate Client Certificates
-      
-            a.    Generate Admin certificate
-            
-            Create a file : admin-csr.json
+##    Generate Admin Client certificate
+          
+      Create a file : admin-csr.json
             
                               {
                     "CN": "admin",
@@ -110,17 +106,16 @@ Requirement -6 VM - ubuntu
                     ]
                   }
                   
-            Execute -- cfssl gencert  -ca=ca.pem -ca-key=ca-key.pem -config=ca-config.json -profile=kubernetes admin-csr.json | cfssljson -bare admin  
+      Execute -- cfssl gencert  -ca=ca.pem -ca-key=ca-key.pem -config=ca-config.json -profile=kubernetes admin-csr.json | cfssljson -bare admin  
             
-            b.    Generate client certificate for kubelet 
+ ##   Generate client certificate for kubelet 
             
-                  1.  Create a file nodedetails.txt with details of hostname and private IP address separated by colon
-                  2.  Execute the script create_worker_kubelet_certificate.sh against nodedetails.txt to generate certificates for worker nodes. 
+      1.  Create a file nodedetails.txt with details of hostname and private IP address separated by colon
+      2.  Execute the script create_worker_kubelet_certificate.sh against nodedetails.txt to generate certificates for worker nodes. 
       
-            c.    Generate client certificate for controller Manager 
+##    Generate client certificate for controller Manager 
             
-                  Create a file - kube-controller-manager.json 
-                  
+      Create a file - kube-controller-manager.json 
                                           {
                           "CN": "system:kube-controller-manager",
                           "key": {
@@ -138,11 +133,11 @@ Requirement -6 VM - ubuntu
                           ]
                         }
                   
-                  Execute - cfssl gencert -ca=ca.pem -ca-key=ca-key.pem -config=ca-config.json -profile=kubernetes kube-controller-manager.json | cfssljson -bare kube-controller-manager
+      Execute - cfssl gencert -ca=ca.pem -ca-key=ca-key.pem -config=ca-config.json -profile=kubernetes kube-controller-manager.json | cfssljson -bare kube-controller-manager
                   
-            d.    Generate client certificate for kube-proxy
+##    Generate client certificate for kube-proxy
             
-                  Create a file - kube-proxy-csr.json
+      Create a file - kube-proxy-csr.json
                   
                                           {
                           "CN": "system:kube-proxy",
@@ -161,11 +156,11 @@ Requirement -6 VM - ubuntu
                           ]
                         }
                   
-                  cfssl gencert -ca=ca.pem -ca-key=ca-key.pem -config=ca-config.json -profile=kubernetes kube-proxy-csr.json | cfssljson -bare kube-proxy
+      cfssl gencert -ca=ca.pem -ca-key=ca-key.pem -config=ca-config.json -profile=kubernetes kube-proxy-csr.json | cfssljson -bare kube-proxy
                   
-            e.    Create client certificate for kube-scheduler
+##    Create client certificate for kube-scheduler
             
-                  Create a file - kube-scheduler-csr.json
+      Create a file - kube-scheduler-csr.json
                   
                          {
                           "CN": "system:kube-scheduler",
@@ -184,12 +179,12 @@ Requirement -6 VM - ubuntu
                           ]
                         }
                         
-                  cfssl gencert -ca=ca.pem -ca-key=ca-key.pem -config=ca-config.json -profile=kubernetes kube-scheduler-csr.json | cfssljson -bare kube-scheduler
+      cfssl gencert -ca=ca.pem -ca-key=ca-key.pem -config=ca-config.json -profile=kubernetes kube-scheduler-csr.json | cfssljson -bare kube-scheduler
 
-      5.    Generate kubernetes apiserver Server Certificate
+##    Generate kubernetes apiserver Server Certificate
       
-            a.    export CERT_HOSTNAME=10.32.0.1,IP_ADDRESSES_OF_MASTER,HOSTNAMES_OF_MASTERS,IP_ADDRESS_OF_LB,HOSTNAME_OF_LB,127.0.0.1,localhost,kubernetes.default
-            b.    Create a file - kubernetes-csr.json
+      a.    export CERT_HOSTNAME=10.32.0.1,IP_ADDRESSES_OF_MASTER,HOSTNAMES_OF_MASTERS,IP_ADDRESS_OF_LB,HOSTNAME_OF_LB,127.0.0.1,localhost,kubernetes.default
+      b.    Create a file - kubernetes-csr.json
             
                                           {
                           "CN": "kubernetes",
@@ -208,10 +203,8 @@ Requirement -6 VM - ubuntu
                           ]
                         }
               
-            c.    Execute - cfssl gencert -ca=ca.pem -ca-key=ca-key.pem -config=ca-config.json -hostname=${CERT_HOSTNAME} -profile=kubernetes kubernetes-csr.json | cfssljson -bare kubernetes
-
-}
-          
+      c.    Execute - cfssl gencert -ca=ca.pem -ca-key=ca-key.pem -config=ca-config.json -hostname=${CERT_HOSTNAME} -profile=kubernetes kubernetes-csr.json | cfssljson -bare kubernetes
+        
 
       
       
