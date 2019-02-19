@@ -204,6 +204,39 @@ Requirement -6 VM - ubuntu
                         }
               
       c.    Execute - cfssl gencert -ca=ca.pem -ca-key=ca-key.pem -config=ca-config.json -hostname=${CERT_HOSTNAME} -profile=kubernetes kubernetes-csr.json | cfssljson -bare kubernetes
+      
+##    Create Service account key-pair certificate
+
+      a.    Kubernetes uses Service account certificates to sign tokens for each service account created 
+      
+      b.    Create a file - service-account-csr.json 
+      
+      c.    
+                        {
+              "CN": "service-accounts",
+              "key": {
+                "algo": "rsa",
+                "size": 2048
+              },
+              "names": [
+                {
+                  "C": "US",
+                  "L": "Portland",
+                  "O": "Kubernetes",
+                  "OU": "Kubernetes The Hard Way",
+                  "ST": "Oregon"
+                }
+              ]
+            }
+      
+      d.    Execute -- cfssl gencert -ca=ca.pem -ca-key=ca-key.pem -config=ca-config.json -profile=kubernetes service-account-csr.json | cfssljson -bare service-account
+      
+##    Copy certificates to respective nodes - 
+
+       a.   Worker Nodes - ca.pem, worker*.pem
+       
+       b.   Master Nodes - 
+
         
 
       
