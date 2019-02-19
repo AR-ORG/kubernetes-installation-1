@@ -12,7 +12,7 @@ Requirement -6 VM - ubuntu
 
 ##  Install client tools on clientnode
 
-      Install cfssl -
+      1.    Install cfssl -
       
       curl -s -L -o /bin/cfssl https://pkg.cfssl.org/R1.2/cfssl_linux-amd64
       
@@ -23,7 +23,7 @@ Requirement -6 VM - ubuntu
       chmod +x /bin/cfssl*
       
           
-      Install kubectl -
+      2.    Install kubectl -
       
       sudo apt-get update && sudo apt-get install -y apt-transport-https
 
@@ -34,3 +34,64 @@ Requirement -6 VM - ubuntu
       sudo apt-get update
       
       sudo apt-get install -y kubectl
+      
+      
+      
+      3.    Provision Certificate Authority
+      
+      Create 2 files - 
+      
+      1.    ca-config.json
+      
+                  {
+              "signing": {
+                "default": {
+                  "expiry": "8760h"
+                },
+                "profiles": {
+                  "kubernetes": {
+                    "usages": ["signing", "key encipherment", "server auth", "client auth"],
+                    "expiry": "8760h"
+                  }
+                }
+              }
+            }
+            
+      2.    ca-csr.json
+      
+                  {
+              "CN": "Kubernetes",
+              "key": {
+                "algo": "rsa",
+                "size": 2048
+              },
+              "names": [
+                {
+                  "C": "US",
+                  "L": "Portland",
+                  "O": "Kubernetes",
+                  "OU": "CA",
+                  "ST": "Oregon"
+                }
+              ]
+            }
+            
+      Execute - cfssl gencert -initca ca-csr.json | cfssljson -bare ca 
+      
+      The above commands createsthe below files 
+      
+      ca.pem -- Public Certificate
+      
+      ca-key.pem  -- private certificate
+      
+      ca.csr  -- CSR file
+      
+      
+      4.    Generate Client Certificates
+      
+      
+      
+      
+
+      
+      
