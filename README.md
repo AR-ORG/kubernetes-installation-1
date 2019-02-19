@@ -89,7 +89,103 @@ Requirement -6 VM - ubuntu
       
       4.    Generate Client Certificates
       
+            a.    Generate Admin certificate
+            
+            Create a file : admin-csr.json
+            
+                              {
+                    "CN": "admin",
+                    "key": {
+                      "algo": "rsa",
+                      "size": 2048
+                    },
+                    "names": [
+                      {
+                        "C": "US",
+                        "L": "Portland",
+                        "O": "system:masters",
+                        "OU": "Kubernetes The Hard Way",
+                        "ST": "Oregon"
+                      }
+                    ]
+                  }
+                  
+            Execute -- cfssl gencert  -ca=ca.pem -ca-key=ca-key.pem -config=ca-config.json -profile=kubernetes admin-csr.json | cfssljson -bare admin  
+            
+            b.    Generate client certificate for kubelet 
+            
+                  1.  Create a file nodedetails.txt with details of hostname and private IP address separated by colon
+                  2.  Execute the script create_worker_kubelet_certificate.sh against nodedetails.txt to generate certificates for worker nodes. 
       
+            c.    Generate client certificate for controller Manager 
+            
+                  Create a file - kube-controller-manager.json 
+                  
+                                          {
+                          "CN": "system:kube-controller-manager",
+                          "key": {
+                            "algo": "rsa",
+                            "size": 2048
+                          },
+                          "names": [
+                            {
+                              "C": "US",
+                              "L": "Portland",
+                              "O": "system:kube-controller-manager",
+                              "OU": "Kubernetes The Hard Way",
+                              "ST": "Oregon"
+                            }
+                          ]
+                        }
+                  
+                  Execute - cfssl gencert -ca=ca.pem -ca-key=ca-key.pem -config=ca-config.json -profile=kubernetes kube-controller-manager.json | cfssljson -bare kube-controller-manager
+                  
+            d.    Generate client certificate for kube-proxy
+            
+                  Create a file - kube-proxy-csr.json
+                  
+                                          {
+                          "CN": "system:kube-proxy",
+                          "key": {
+                            "algo": "rsa",
+                            "size": 2048
+                          },
+                          "names": [
+                            {
+                              "C": "US",
+                              "L": "Portland",
+                              "O": "system:node-proxier",
+                              "OU": "Kubernetes The Hard Way",
+                              "ST": "Oregon"
+                            }
+                          ]
+                        }
+                  
+                  cfssl gencert -ca=ca.pem -ca-key=ca-key.pem -config=ca-config.json -profile=kubernetes kube-proxy-csr.json | cfssljson -bare kube-proxy
+                  
+            e.    Create client certificate for kube-scheduler
+            
+                  Create a file - kube-scheduler-csr.json
+                  
+                         {
+                          "CN": "system:kube-scheduler",
+                          "key": {
+                            "algo": "rsa",
+                            "size": 2048
+                          },
+                          "names": [
+                            {
+                              "C": "US",
+                              "L": "Portland",
+                              "O": "system:kube-scheduler",
+                              "OU": "Kubernetes The Hard Way",
+                              "ST": "Oregon"
+                            }
+                          ]
+                        }
+                        
+                  cfssl gencert -ca=ca.pem -ca-key=ca-key.pem -config=ca-config.json -profile=kubernetes kube-scheduler-csr.json | cfssljson -bare kube-scheduler
+
       
       
 
