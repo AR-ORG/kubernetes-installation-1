@@ -186,8 +186,32 @@ Requirement -6 VM - ubuntu
                         
                   cfssl gencert -ca=ca.pem -ca-key=ca-key.pem -config=ca-config.json -profile=kubernetes kube-scheduler-csr.json | cfssljson -bare kube-scheduler
 
+      5.    Generate kubernetes apiserver Server Certificate
       
-      
+            a.    export CERT_HOSTNAME=10.32.0.1,IP_ADDRESSES_OF_MASTER,HOSTNAMES_OF_MASTERS,IP_ADDRESS_OF_LB,HOSTNAME_OF_LB,127.0.0.1,localhost,kubernetes.default
+            b.    Create a file - kubernetes-csr.json
+            
+                                          {
+                          "CN": "kubernetes",
+                          "key": {
+                            "algo": "rsa",
+                            "size": 2048
+                          },
+                          "names": [
+                            {
+                              "C": "US",
+                              "L": "Portland",
+                              "O": "Kubernetes",
+                              "OU": "Kubernetes The Hard Way",
+                              "ST": "Oregon"
+                            }
+                          ]
+                        }
+              
+            c.    Execute - cfssl gencert -ca=ca.pem -ca-key=ca-key.pem -config=ca-config.json -hostname=${CERT_HOSTNAME} -profile=kubernetes kubernetes-csr.json | cfssljson -bare kubernetes
+
+}
+          
 
       
       
