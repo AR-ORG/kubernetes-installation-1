@@ -440,35 +440,191 @@ Requirement -6 VM - ubuntu
       l.    Create a systemd unit file for etcd on all masters 
       
             cat << EOF | sudo tee /etc/systemd/system/etcd.service
-[Unit]
-Description=etcd
-Documentation=https://github.com/coreos
+            [Unit]
+            Description=etcd
+            Documentation=https://github.com/coreos
 
-[Service]
-ExecStart=/usr/local/bin/etcd \\
-  --name ${ETCD_NAME} \\
-  --cert-file=/etc/etcd/kubernetes.pem \\
-  --key-file=/etc/etcd/kubernetes-key.pem \\
-  --peer-cert-file=/etc/etcd/kubernetes.pem \\
-  --peer-key-file=/etc/etcd/kubernetes-key.pem \\
-  --trusted-ca-file=/etc/etcd/ca.pem \\
-  --peer-trusted-ca-file=/etc/etcd/ca.pem \\
-  --peer-client-cert-auth \\
-  --client-cert-auth \\
-  --initial-advertise-peer-urls https://${INTERNAL_IP}:2380 \\
-  --listen-peer-urls https://${INTERNAL_IP}:2380 \\
-  --listen-client-urls https://${INTERNAL_IP}:2379,https://127.0.0.1:2379 \\
-  --advertise-client-urls https://${INTERNAL_IP}:2379 \\
-  --initial-cluster-token etcd-cluster-0 \\
-  --initial-cluster ${INITIAL_CLUSTER} \\
-  --initial-cluster-state new \\
-  --data-dir=/var/lib/etcd
-Restart=on-failure
-RestartSec=5
+            [Service]
+            ExecStart=/usr/local/bin/etcd \\
+              --name ${ETCD_NAME} \\
+              --cert-file=/etc/etcd/kubernetes.pem \\
+              --key-file=/etc/etcd/kubernetes-key.pem \\
+              --peer-cert-file=/etc/etcd/kubernetes.pem \\
+              --peer-key-file=/etc/etcd/kubernetes-key.pem \\
+              --trusted-ca-file=/etc/etcd/ca.pem \\
+              --peer-trusted-ca-file=/etc/etcd/ca.pem \\
+              --peer-client-cert-auth \\
+              --client-cert-auth \\
+              --initial-advertise-peer-urls https://${INTERNAL_IP}:2380 \\
+              --listen-peer-urls https://${INTERNAL_IP}:2380 \\
+              --listen-client-urls https://${INTERNAL_IP}:2379,https://127.0.0.1:2379 \\
+              --advertise-client-urls https://${INTERNAL_IP}:2379 \\
+              --initial-cluster-token etcd-cluster-0 \\
+              --initial-cluster ${INITIAL_CLUSTER} \\
+              --initial-cluster-state new \\
+              --data-dir=/var/lib/etcd
+            Restart=on-failure
+            RestartSec=5
 
-[Install]
-WantedBy=multi-user.target
-EOF
+            [Install]
+            WantedBy=multi-user.target
+            EOF
+            
+      m.    sudo systemctl daemon-reload
+      
+      n.    sudo systemctl enable etcd
+      
+      o.    sudo systemctl start etcd
+      
+      p.    Verify etcd -
+            
+            sudo systemctl status etcd
+            
+            sudo ETCDCTL_API=3 etcdctl member list \
+              --endpoints=https://127.0.0.1:2379 \
+              --cacert=/etc/etcd/ca.pem \
+              --cert=/etc/etcd/kubernetes.pem \
+              --key=/etc/etcd/kubernetes-key.pem
+
+##    Download binaries for the Kubernetes Control Plane 
+
+      a.    Kubernetes control plane consists of -
+      
+            kube-apiserver
+            
+            etcd
+            
+            kube-scheduler
+            
+            kube-controller-manager
+            
+            cloud-controller-manager (OPTIONAL)
+            
+      b.    The below steps are to be performed on all MASTER nodes
+            
+      c.    sudo mkdir -p /etc/kubernetes/config
+      
+      d.    Download the kubernetes version 1.13 latest binaries from official kubernetes release page - https://kubernetes.io/docs/setup/release/notes/#client-binaries
+      
+            wget https://dl.k8s.io/v1.13.0/kubernetes-server-linux-amd64.tar.gz
+            
+      e.    unzip and untar the the file
+      
+      f.    cd kubernetes/server/bin
+      
+      g.    cp kube-apiserver kube-controller-manager kube-scheduler kubectl /usr/local/bin/
+      
+##    Configure the kube-apiserver
+
+      a.    The systemd unit file for kube-apiserver needs to be installed on all MASTERS
+      
+      b.    mkdir -p /var/lib/kubernetes/
+      
+      c.    Copy certificates to /var/lib/kubernetes
+            
+            cp ca.pem ca-key.pem kubernetes-key.pem kubernetes.pem  service-account-key.pem service-account.pem encryption-config.yaml /var/lib/kubernetes/
+            
+      d.    export the below variables on all MASTER hosts
+            
+            export INTERNAL_IP=INTERNAL_IP_ADDRESS_OF_THE_MASTER
+            
+            export CONTROLLER0_IP=IP_ADDRESS_OF_MASTER0
+            
+            export CONTROLLER1_IP=IP_ADDRESS_OF_MASTER1
+            
+            and so on export CONTROLLER2_IP, CONTROLLER3_IP.....
+            
+      e.    Create the systemd unit file for kube-apiserver that takes the variables from above - 
+      
+      cat << EOF | sudo tee /etc/systemd/system/kube-apiserver.service
+      [Unit]
+      Description=Kubernetes API Server
+      Documentation=https://github.com/kubernetes/kubernetes
+
+      [Service]
+      ExecStart=/usr/local/bin/kube-apiserver \\
+        --advertise-address=${INTERNAL_IP} \\
+        --allow-privileged=true \\
+        --apiserver-count=3 \\
+        --audit-log-maxage=30 \\
+        --audit-log-maxbackup=3 \\
+        --audit-log-maxsize=100 \\
+        --audit-log-path=/var/log/audit.log \\
+        --authorization-mode=Node,RBAC \\
+        --bind-address=0.0.0.0 \\
+        --client-ca-file=/var/lib/kubernetes/ca.pem \\
+        --enable-admission-plugins=Initializers,NamespaceLifecycle,NodeRestriction,LimitRanger,ServiceAccount,DefaultStorageClass,ResourceQuota \\
+        --enable-swagger-ui=true \\
+        --etcd-cafile=/var/lib/kubernetes/ca.pem \\
+        --etcd-certfile=/var/lib/kubernetes/kubernetes.pem \\
+        --etcd-keyfile=/var/lib/kubernetes/kubernetes-key.pem \\
+        --etcd-servers=https://$CONTROLLER0_IP:2379,https://$CONTROLLER1_IP:2379 \\
+        --event-ttl=1h \\
+        --experimental-encryption-provider-config=/var/lib/kubernetes/encryption-config.yaml \\
+        --kubelet-certificate-authority=/var/lib/kubernetes/ca.pem \\
+        --kubelet-client-certificate=/var/lib/kubernetes/kubernetes.pem \\
+        --kubelet-client-key=/var/lib/kubernetes/kubernetes-key.pem \\
+        --kubelet-https=true \\
+        --runtime-config=api/all \\
+        --service-account-key-file=/var/lib/kubernetes/service-account.pem \\
+        --service-cluster-ip-range=10.32.0.0/24 \\
+        --service-node-port-range=30000-32767 \\
+        --tls-cert-file=/var/lib/kubernetes/kubernetes.pem \\
+        --tls-private-key-file=/var/lib/kubernetes/kubernetes-key.pem \\
+        --v=2 \\
+        --kubelet-preferred-address-types=InternalIP,InternalDNS,Hostname,ExternalIP,ExternalDNS
+      Restart=on-failure
+      RestartSec=5
+
+      [Install]
+      WantedBy=multi-user.target
+      EOF
+      
+##    Set Up kube-controller-manager
+
+      a.    The below steps are to be performed on all master servers
+      
+      b.     cp kube-controller-manager.kubeconfig /var/lib/kubernetes/
+      
+      c.    Generate the systemd unit file for kube-scheduler
+      
+      cat << EOF | sudo tee /etc/systemd/system/kube-controller-manager.service
+      [Unit]
+      Description=Kubernetes Controller Manager
+      Documentation=https://github.com/kubernetes/kubernetes
+
+      [Service]
+      ExecStart=/usr/local/bin/kube-controller-manager \\
+        --address=0.0.0.0 \\
+        --cluster-cidr=10.200.0.0/16 \\
+        --cluster-name=kubernetes \\
+        --cluster-signing-cert-file=/var/lib/kubernetes/ca.pem \\
+        --cluster-signing-key-file=/var/lib/kubernetes/ca-key.pem \\
+        --kubeconfig=/var/lib/kubernetes/kube-controller-manager.kubeconfig \\
+        --leader-elect=true \\
+        --root-ca-file=/var/lib/kubernetes/ca.pem \\
+        --service-account-private-key-file=/var/lib/kubernetes/service-account-key.pem \\
+        --service-cluster-ip-range=10.32.0.0/24 \\
+        --use-service-account-credentials=true \\
+        --v=2
+      Restart=on-failure
+      RestartSec=5
+
+      [Install]
+      WantedBy=multi-user.target
+      EOF
+      
+      d.    Explanation of few flags -
+            
+            --kubeconfig - location of the kubeconfig file
+            
+            --cluster-cidr - This is the cidr for the cluster
+            
+            --service-cluster-ip-range - This ip address is used by kubernetes internally for initializing ClusterIp service for kubernetes cluster
+            
+ 
+
+
 
 
 
