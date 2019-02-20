@@ -754,7 +754,228 @@ Requirement -6 VM - ubuntu
       
       h.    kubectl apply -f kubelet-rbac-clusterrolebinding.yaml --kubeconfig admin.kubeconfig
       
-      i.    
+##    Setup Loadbalancer for api-server
+
+      a.    The loadbalancer will balance load between the apiserver on all the masters.
+            You can utilize the tcp stream functionality of nginx to create your loadbalancer. Alternatively you may also use
+            HAPROXY or any external LB of your choice.
+      
+      b.    The below commands are to be run on loadbalancer node
+      
+      c.    apt-get install -y nginx
+      
+      d.    systemctl enable nginx
+      
+      e.    mkdir -p /etc/nginx/tcpconf.d
+      
+      f.    Edit /etc/nginx/nginx.conf and add the following line at the end - include /etc/nginx/tcpconf.d/*; 
+      
+      g.    Create a file - /etc/nginx/tcpconf.d/kubernetes.conf
+      
+      stream {
+          upstream kubernetes {
+              server $CONTROLLER0_IP:6443;
+              server $CONTROLLER1_IP:6443;
+          }
+
+          server {
+              listen 6443;
+              listen 443;
+              proxy_pass kubernetes;
+          }
+      }
+      
+      h.    nginx -s reload 
+      
+      i.    Test the configuration - curl -k https://localhost:6443/version  --- Output should be a json response with version 1.13
+      
+##    Setting up Kubernetes worker nodes 
+
+      a.    Worker nodes consists of 
+      
+            kubelet
+            
+            kube-proxy
+            
+            Container runtime - docker / containerd / rkt etc.
+            
+      b.    The below steps are to be run on all worker nodes 
+      
+      c.    apt-get -y install socat conntrack ipset
+      
+            conntrack - dependency required for kube-proxy
+            
+            socat - Used to interface with containers while executing kubectl exec or kubectl proxy etc. 
+            
+            ipset - used by IPVS for loadbalancing with client session based affinity
+            
+##    Install crictl on worker nodes
+
+      VERSION="v1.13.0"
+      
+      wget https://github.com/kubernetes-sigs/cri-tools/releases/download/$VERSION/crictl-$VERSION-linux-amd64.tar.gz
+      
+      sudo tar zxvf crictl-$VERSION-linux-amd64.tar.gz -C /usr/local/bin
+      
+      rm -f crictl-$VERSION-linux-amd64.tar.gz
+
+##    Install runsc on worker nodes
+      gVisor is a user-space kernel, written in Go, that implements a substantial portion of the Linux system surface. It includes an Open Container Initiative (OCI) runtime called runsc that provides an isolation boundary between the application and the host kernel. The runsc runtime integrates with Docker and Kubernetes, making it simple to run sandboxed containers.
+
+      wget https://storage.googleapis.com/gvisor/releases/nightly/latest/runsc
+      
+      wget https://storage.googleapis.com/gvisor/releases/nightly/latest/runsc.sha512
+      
+      sha512sum -c runsc.sha512
+      
+      chmod a+x runsc
+      
+      sudo mv runsc /usr/local/bin
+      
+##    Install runc on worker nodes
+
+      runc is a CLI tool for spawning and running containers according to the OCI specification.
+
+      wget https://github.com/opencontainers/runc/releases/download/v1.0.0-rc6/runc.amd64
+      
+      chmod +x runc.amd64 
+      
+      mv runc.amd64 /usr/local/bin/runc
+      
+##    Install container runtime (docker)
+
+      apt-get -y install docker.io
+      
+##    Download worker node components 
+
+      wget https://dl.k8s.io/v1.13.0/kubernetes-node-linux-amd64.tar.gz
+      
+      gzip -d kubernetes-node-linux-amd64.tar.gz
+      
+      tar xvf kubernetes-node-linux-amd64.tar
+      
+      mkdir -p /var/lib/kubelet /var/lib/kube-proxy    /var/lib/kubernetes /var/run/kubernetes
+      
+      cd kubernetes/node/bin
+      
+      chmod +x *
+      
+      cp * /usr/local/bin/
+      
+##    Install CNI plugin archive
+
+      wget https://github.com/containernetworking/plugins/releases/download/v0.7.4/cni-plugins-amd64-v0.7.4.tgz
+      
+      mkdir -p /etc/cni/net.d  /opt/cni/bin 
+      
+      tar -xvf cni-plugins-amd64-v0.7.4.tgz -C /opt/cni/bin/
+      
+##    Configure kubelet
+
+      a.    The below steps are to be performed on all worker nodes
+      
+      b.    export HOSTNAME=`hostname`
+      
+      c.    mv ${HOSTNAME}-key.pem ${HOSTNAME}.pem /var/lib/kubelet/
+      
+      d.    mv ${HOSTNAME}.kubeconfig /var/lib/kubelet/kubeconfig
+      
+      e.    mv ca.pem /var/lib/kubernetes/
+      
+      f.    Create configfile for kubelet - /var/lib/kubelet/kubelet-config.yaml
+      
+      cat << EOF | sudo tee /var/lib/kubelet/kubelet-config.yaml
+      kind: KubeletConfiguration
+      apiVersion: kubelet.config.k8s.io/v1beta1
+      authentication:
+        anonymous:
+          enabled: false
+        webhook:
+          enabled: true
+        x509:
+          clientCAFile: "/var/lib/kubernetes/ca.pem"
+      authorization:
+        mode: Webhook
+      clusterDomain: "cluster.local"
+      clusterDNS: 
+        - "10.32.0.10"
+      runtimeRequestTimeout: "15m"
+      tlsCertFile: "/var/lib/kubelet/${HOSTNAME}.pem"
+      tlsPrivateKeyFile: "/var/lib/kubelet/${HOSTNAME}-key.pem"
+      EOF
+      
+      g.    Create systemd unit file for kubelet - /etc/systemd/system/kubelet.service
+      
+      cat << EOF | sudo tee /etc/systemd/system/kubelet.service
+      [Unit]
+      Description=Kubernetes Kubelet
+      Documentation=https://github.com/kubernetes/kubernetes
+      After=containerd.service
+      Requires=containerd.service
+
+      [Service]
+      ExecStart=/usr/local/bin/kubelet \\
+        --config=/var/lib/kubelet/kubelet-config.yaml \\
+        --container-runtime=remote \\
+        --container-runtime-endpoint=unix:///var/run/containerd/containerd.sock \\
+        --image-pull-progress-deadline=2m \\
+        --kubeconfig=/var/lib/kubelet/kubeconfig \\
+        --network-plugin=cni \\
+        --register-node=true \\
+        --v=2 \\
+        --hostname-override=${HOSTNAME} \\
+        --allow-privileged=true
+      Restart=on-failure
+      RestartSec=5
+
+      [Install]
+      WantedBy=multi-user.target
+      EOF
+      
+##    Configure kube-proxy
+
+      a.    mv kube-proxy.kubeconfig /var/lib/kube-proxy/kubeconfig
+      
+      b.    Create Kubeproxy config yaml file - 
+      
+      cat << EOF | sudo tee /var/lib/kube-proxy/kube-proxy-config.yaml
+      kind: KubeProxyConfiguration
+      apiVersion: kubeproxy.config.k8s.io/v1alpha1
+      clientConnection:
+        kubeconfig: "/var/lib/kube-proxy/kubeconfig"
+      mode: "iptables"
+      clusterCIDR: "10.200.0.0/16"
+      EOF
+      
+      c.    Create systemd unit file -
+      
+      cat << EOF | sudo tee /etc/systemd/system/kube-proxy.service
+      [Unit]
+      Description=Kubernetes Kube Proxy
+      Documentation=https://github.com/kubernetes/kubernetes
+
+      [Service]
+      ExecStart=/usr/local/bin/kube-proxy \\
+        --config=/var/lib/kube-proxy/kube-proxy-config.yaml
+      Restart=on-failure
+      RestartSec=5
+
+      [Install]
+      WantedBy=multi-user.target
+      EOF
+
+##    Start worker node 
+
+      a.    
+
+
+      
+      
+      
+      
+      
+      
+
       
       
 
