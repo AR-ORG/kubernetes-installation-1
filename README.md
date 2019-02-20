@@ -372,5 +372,45 @@ Requirement -6 VM - ubuntu
                 --kubeconfig=admin.kubeconfig
 
               kubectl config use-context default --kubeconfig=admin.kubeconfig
+              
+##    Distribute kubeconfig files to master and workers
+      
+      a.    worker nodes - worker{{X}}.kubeconfig kube-proxy.kubeconfig
+      
+      b.    master nodes - admin.kubeconfig kube-controller-manager.kubeconfig kube-scheduler.kubeconfig
+      
+##    Generate data encryption configuration
+
+      a.    kube-apiserver stores data in etcd. There are cases when you would want to encrypt your data at rest.
+      
+      b.    In case of secrets, data is encrypted so that its not stored as clear text in etcd. 
+      
+      c.    In order to achieve this we need to provide kubernetes with an encryption key. 
+      
+      d.    More details at : https://kubernetes.io/docs/tasks/administer-cluster/encrypt-data/
+      
+      e.    ENCRYPTION_KEY=$(head -c 32 /dev/urandom| base64)
+      
+      f.    Create a file - encryption-config.yaml
+      
+      kind: EncryptionConfig
+      apiVersion: v1
+      resources:
+        - resources:
+            - secrets
+          providers:
+            - aescbc:
+                keys:
+                  - name: key1
+                    secret: ${ENCRYPTION_KEY}
+            - identity: {}
+            
+        g.  scp encryption-config.yaml to master nodes. 
+        
+
+      
+      
+      
+      
       
 
