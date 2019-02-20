@@ -601,6 +601,7 @@ Requirement -6 VM - ubuntu
         --cluster-signing-cert-file=/var/lib/kubernetes/ca.pem \\
         --cluster-signing-key-file=/var/lib/kubernetes/ca-key.pem \\
         --kubeconfig=/var/lib/kubernetes/kube-controller-manager.kubeconfig \\
+        --allocate-node-cidrs=true \
         --leader-elect=true \\
         --root-ca-file=/var/lib/kubernetes/ca.pem \\
         --service-account-private-key-file=/var/lib/kubernetes/service-account-key.pem \\
@@ -832,19 +833,9 @@ Requirement -6 VM - ubuntu
       
       sudo mv runsc /usr/local/bin
       
-##    Install runc on worker nodes
-
-      runc is a CLI tool for spawning and running containers according to the OCI specification.
-
-      wget https://github.com/opencontainers/runc/releases/download/v1.0.0-rc6/runc.amd64
-      
-      chmod +x runc.amd64 
-      
-      mv runc.amd64 /usr/local/bin/runc
-      
 ##    Install container runtime (docker)
 
-      apt-get -y install docker.io
+      Installation steps as per : https://docs.docker.com/install/linux/docker-ce/ubuntu/
       
 ##    Download worker node components 
 
@@ -910,14 +901,12 @@ Requirement -6 VM - ubuntu
       [Unit]
       Description=Kubernetes Kubelet
       Documentation=https://github.com/kubernetes/kubernetes
-      After=containerd.service
-      Requires=containerd.service
+      After=docker.service
+      Requires=docker.service
 
       [Service]
       ExecStart=/usr/local/bin/kubelet \\
         --config=/var/lib/kubelet/kubelet-config.yaml \\
-        --container-runtime=remote \\
-        --container-runtime-endpoint=unix:///var/run/containerd/containerd.sock \\
         --image-pull-progress-deadline=2m \\
         --kubeconfig=/var/lib/kubelet/kubeconfig \\
         --network-plugin=cni \\
@@ -966,7 +955,48 @@ Requirement -6 VM - ubuntu
 
 ##    Start worker node 
 
-      a.    
+      a.    systemctl daemon-reload
+      
+      b.    systemctl restart kubelet kube-proxy
+      
+      c.    systemctl status kubelet kube-proxy
+      
+      d.    log in to any controller node and run - kubectl get nodes to get all nodes 
+      
+
+##    Manage remote kubectl for remote cluster access
+
+      a.    The following steps will be done on clientnode machine 
+      
+      b.    kubectl config set-cluster mycluster  --certificate-authority=ca.pem --embed-certs=true  --server=https://loadbalancer:6443
+      
+      c.    kubectl config set-credentials admin --client-certificate=admin.pem --client-key=admin-key.pem
+      
+      d.    kubectl config set-context mycluster --cluster=mycluster --user=admin
+      
+      e.    kubectl config use-context mycluster
+      
+      f.    Verify using kubectl get nodes / kubectl get pods 
+      
+##    Configure Kubernetes networking (CALICO)
+
+      a.    https://kubernetes.io/docs/concepts/cluster-administration/networking/
+      
+      b.    Cluster network architecture
+            
+            cluster-cidr - IP range used to assign IPs to pods. We have configured this as 10.200.0.0/16 on systemd unit file of controller manager
+            
+            service-cluster-ip-range - IP range used to assign IPs to services. We have configured this as 10.32.0.0/16
+            
+            pod_cidr - IP range of pods within a specific node. This should fall within the range of cluster-cidr and is managed by CNI
+            
+      c.    Download calico.yaml 
+            
+            curl https://docs.projectcalico.org/v3.5/getting-started/kubernetes/installation/hosted/kubernetes-datastore/calico-networking/1.7/calico.yaml -O
+            
+      d.    Find CALICO_IPV4POOL_CIDR in calico.yaml and change the range from 192.168.0.0/16 to the value set for cluster-cidr (10.200.0.0/16)
+      
+      e.    
 
 
       
