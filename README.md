@@ -622,7 +622,88 @@ Requirement -6 VM - ubuntu
             
             --service-cluster-ip-range - This ip address is used by kubernetes internally for initializing ClusterIp service for kubernetes cluster
             
+ ##   Configure kube-scheduler
  
+      a.   The below steps are to be performed on all master servers
+      
+      b.    cp kube-scheduler.kubeconfig /var/lib/kubernetes/
+      
+      c.    kube-scheduler requires an additional YAML files to store kube-scheduler configuration
+      
+      e.    Create the kube-scheduler.yaml file to store the kube-scheduler configs
+      
+      cat << EOF | sudo tee /etc/kubernetes/config/kube-scheduler.yaml
+      apiVersion: kubescheduler.config.k8s.io/v1alpha1
+      kind: KubeSchedulerConfiguration
+      clientConnection:
+        kubeconfig: "/var/lib/kubernetes/kube-scheduler.kubeconfig"
+      leaderElection:
+        leaderElect: true
+      EOF
+      
+      f.    Create the systemd unit file for kube-scheduler
+      
+      cat << EOF | sudo tee /etc/systemd/system/kube-scheduler.service
+      [Unit]
+      Description=Kubernetes Scheduler
+      Documentation=https://github.com/kubernetes/kubernetes
+
+      [Service]
+      ExecStart=/usr/local/bin/kube-scheduler \\
+        --config=/etc/kubernetes/config/kube-scheduler.yaml \\
+        --v=2
+      Restart=on-failure
+      RestartSec=5
+
+      [Install]
+      WantedBy=multi-user.target
+      EOF
+      
+##    Start the Master Control Plane
+
+      a.    sudo systemctl daemon-reload
+      
+      b.    sudo systemctl enable kube-apiserver kube-controller-manager kube-scheduler
+      
+      c.    sudo systemctl start kube-apiserver kube-controller-manager kube-scheduler
+      
+      d.    kubectl get componentstatuses --kubeconfig admin.kubeconfig
+      
+      e.    sudo systemctl status kube-apiserver kube-controller-manager kube-scheduler
+      
+##    Set Up health-check on /healthz
+
+      a.    In our current scenario - we will use nginx to set up a health check for kubernetes cluster at https://localhost:6443/healthz. This needs to be setup on all Master nodes
+      
+      b.    You can use external LB on AWS/GCP to perform the same action and setup a health check for the same
+      
+      c.    apt-get install -y nginx 
+      
+      d.    Create a nginx.config.cluster file with the below proxypass content - 
+      
+            server {
+              listen      80;
+              server_name kubernetes.default.svc.cluster.local;
+
+              location /healthz {
+                 proxy_pass                    https://127.0.0.1:6443/healthz;
+                 proxy_ssl_trusted_certificate /var/lib/kubernetes/ca.pem;
+              }
+            }
+            
+      e.    cp nginx.config.cluster /etc/nginx/sites-available/nginx.config.cluster
+      
+      f.    ln -s /etc/nginx/sites-available/nginx.config.cluster /etc/nginx/sites-enabled/
+      
+      g.    sudo systemctl restart nginx
+
+      h.    sudo systemctl enable nginx
+      
+      i.    Test the health-check using - curl -H "Host: kubernetes.default.svc.cluster.local" -i http://127.0.0.1/healthz
+      
+##    
+
+
 
 
 
