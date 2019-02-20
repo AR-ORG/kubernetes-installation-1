@@ -233,11 +233,144 @@ Requirement -6 VM - ubuntu
       
 ##    Copy certificates to respective nodes - 
 
-       a.   Worker Nodes - ca.pem, worker*.pem
+      a.   Worker Nodes - ca.pem, worker*.pem
        
-       b.   Master Nodes - 
+      b.   Master Nodes - ca.pem ca-key.pem kubernetes-key.pem kubernetes.pem
+       
+      c.   The remaining certificates will be used in the next section while creating kubeconfig. 
+       
+##    Generate kubeconfig 
 
+      a.    Kubeconfig stores information about the cluster, users, namespaces and the correspinding authentication mechanism. Multiple K8S clusters can interact with each other using the configuration stored inside kubeconfig.
+      
+      b.    kubeconfig will be generated for the below
+            
+            Admin user
+            
+            kube-scheduler
+            
+            kube-proxy
+            
+            kube-controller
+            
+            kubelet - for each worker
+
+##    Generate kubeconfig for kubelet (each worker)
+
+      a.    export KUBERNETES_ADDRESS=IP_ADDRESS_OF_LOADBALANCER
+      
+      b.    for instance in worker1 worker2   # {{WORKER NODES}}
+            do
+              kubectl config set-cluster mycluster \  #{{cluster name}}
+                --certificate-authority=ca.pem \   # {{public key for CA}}
+                --embed-certs=true \
+                --server=https://${KUBERNETES_ADDRESS}:6443 \    # {{Variable from above}}
+                --kubeconfig=${instance}.kubeconfig
+
+              kubectl config set-credentials system:node:${instance} \  #{{set the username}}
+                --client-certificate=${instance}.pem \    # {{kubelet certificate public}}
+                --client-key=${instance}-key.pem \    #{{kubelet private certificate}}
+                --embed-certs=true \
+                --kubeconfig=${instance}.kubeconfig   #{{name of kubeconfig}}
+
+              kubectl config set-context default \
+                --cluster=mycluster \
+                --user=system:node:${instance} \
+                --kubeconfig=${instance}.kubeconfig
+
+              kubectl config use-context default --kubeconfig=${instance}.kubeconfig
+            done
+            
+        c.  Make sure to remove the # comments before running the above script. 
         
+##    Generate kubeconfig for kube-proxy 
 
+      a.    Single kube-proxy config will be used for all nodes. 
       
+      b.    kubectl config set-cluster mycluster \
+                --certificate-authority=ca.pem \
+                --embed-certs=true \
+                --server=https://${KUBERNETES_ADDRESS}:6443 \
+                --kubeconfig=kube-proxy.kubeconfig
+
+              kubectl config set-credentials system:kube-proxy \
+                --client-certificate=kube-proxy.pem \
+                --client-key=kube-proxy-key.pem \
+                --embed-certs=true \
+                --kubeconfig=kube-proxy.kubeconfig
+
+              kubectl config set-context default \
+                --cluster=mycluster \
+                --user=system:kube-proxy \
+                --kubeconfig=kube-proxy.kubeconfig
+
+              kubectl config use-context default --kubeconfig=kube-proxy.kubeconfig
+              
+##    Generate kubeconfig for kube-controller-manager
+
+      a.    kube-controller-manager will not interact with LoadBalancer directly. Hence the server address can be kept as loopback IP.
       
+      b.     kubectl config set-cluster mycluster \
+                --certificate-authority=ca.pem \
+                --embed-certs=true \
+                --server=https://127.0.0.1:6443 \
+                --kubeconfig=kube-controller-manager.kubeconfig
+
+              kubectl config set-credentials system:kube-controller-manager \
+                --client-certificate=kube-controller-manager.pem \
+                --client-key=kube-controller-manager-key.pem \
+                --embed-certs=true \
+                --kubeconfig=kube-controller-manager.kubeconfig
+
+              kubectl config set-context default \
+                --cluster=mycluster \
+                --user=system:kube-controller-manager \
+                --kubeconfig=kube-controller-manager.kubeconfig
+
+              kubectl config use-context default --kubeconfig=kube-controller-manager.kubeconfig
+
+##    Generate kubeconfig for kube-scheduler
+      
+      a.    kube-scheduler will not interact with LoadBalancer directly. Hence the server address can be kept as loopback IP.
+      
+      b.    kubectl config set-cluster mycluster \
+                --certificate-authority=ca.pem \
+                --embed-certs=true \
+                --server=https://127.0.0.1:6443 \
+                --kubeconfig=kube-scheduler.kubeconfig
+
+              kubectl config set-credentials system:kube-scheduler \
+                --client-certificate=kube-scheduler.pem \
+                --client-key=kube-scheduler-key.pem \
+                --embed-certs=true \
+                --kubeconfig=kube-scheduler.kubeconfig
+
+              kubectl config set-context default \
+                --cluster=mycluster \
+                --user=system:kube-scheduler \
+                --kubeconfig=kube-scheduler.kubeconfig
+
+              kubectl config use-context default --kubeconfig=kube-scheduler.kubeconfig
+              
+##    Generate kubeconfig for Admin
+
+      a.      kubectl config set-cluster mycluster \
+                --certificate-authority=ca.pem \
+                --embed-certs=true \
+                --server=https://127.0.0.1:6443 \
+                --kubeconfig=admin.kubeconfig
+
+              kubectl config set-credentials admin \
+                --client-certificate=admin.pem \
+                --client-key=admin-key.pem \
+                --embed-certs=true \
+                --kubeconfig=admin.kubeconfig
+
+              kubectl config set-context default \
+                --cluster=mycluster \
+                --user=admin \
+                --kubeconfig=admin.kubeconfig
+
+              kubectl config use-context default --kubeconfig=admin.kubeconfig
+      
+
