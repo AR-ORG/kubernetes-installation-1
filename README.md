@@ -407,6 +407,72 @@ Requirement -6 VM - ubuntu
             
         g.  scp encryption-config.yaml to master nodes. 
         
+        
+##    Configure ETCD cluster
+
+      a.    ETCD is a distributed key value store that provides a reliable way to store data across a cluster of machines
+      
+      b.    ETCD keeps the data in sync across all machines 
+      
+      c.    Kubernetes uses ETCD to store all of its data about the cluster state inside etcd distributed datastore
+      
+      d.    ETCD will be installed on master nodes. 
+      
+      e.    On all the master nodes perform the below steps 
+      
+      f.    wget -q --show-progress --https-only --timestamping "https://github.com/coreos/etcd/releases/download/v3.3.5/etcd-v3.3.5-linux-amd64.tar.gz"    ---   Download ETCD binary
+      
+      g.    tar -xvf etcd-v3.3.5-linux-amd64.tar.gz
+      
+      h.    sudo mv etcd-v3.3.5-linux-amd64/etcd* /usr/local/bin/
+      
+      i.     mkdir -p /etc/etcd /var/lib/etcd
+      
+      j.    cd certs; cp ca.pem kubernetes-key.pem kubernetes.pem /etc/etcd/
+      
+      k.    export few environment variables on all master nodes
+            
+            export ETCD_NAME=NAME_OF_THE_NODE
+            export INTERNAL_IP=IP_ADDRESS_OF_NODE
+            export INITIAL_CLUSTER=MASTER1_NAME=https://MASTER1_PRIVATE_IP:2380,MASTER2_NAME=https://MASTER2_PRIVATE_IP,.........
+            example : export INITIAL_CLUSTER=controller1=https://10.142.0.4:2380,controller2=https://10.142.0.3:2380
+            
+      l.    Create a systemd unit file for etcd on all masters 
+      
+            cat << EOF | sudo tee /etc/systemd/system/etcd.service
+[Unit]
+Description=etcd
+Documentation=https://github.com/coreos
+
+[Service]
+ExecStart=/usr/local/bin/etcd \\
+  --name ${ETCD_NAME} \\
+  --cert-file=/etc/etcd/kubernetes.pem \\
+  --key-file=/etc/etcd/kubernetes-key.pem \\
+  --peer-cert-file=/etc/etcd/kubernetes.pem \\
+  --peer-key-file=/etc/etcd/kubernetes-key.pem \\
+  --trusted-ca-file=/etc/etcd/ca.pem \\
+  --peer-trusted-ca-file=/etc/etcd/ca.pem \\
+  --peer-client-cert-auth \\
+  --client-cert-auth \\
+  --initial-advertise-peer-urls https://${INTERNAL_IP}:2380 \\
+  --listen-peer-urls https://${INTERNAL_IP}:2380 \\
+  --listen-client-urls https://${INTERNAL_IP}:2379,https://127.0.0.1:2379 \\
+  --advertise-client-urls https://${INTERNAL_IP}:2379 \\
+  --initial-cluster-token etcd-cluster-0 \\
+  --initial-cluster ${INITIAL_CLUSTER} \\
+  --initial-cluster-state new \\
+  --data-dir=/var/lib/etcd
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+
+
+        
 
       
       
