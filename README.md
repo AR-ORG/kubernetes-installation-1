@@ -992,11 +992,31 @@ Requirement -6 VM - ubuntu
             
       c.    Download calico.yaml 
             
-            curl https://docs.projectcalico.org/v3.5/getting-started/kubernetes/installation/hosted/kubernetes-datastore/calico-networking/1.7/calico.yaml -O
+            curl https://docs.projectcalico.org/v3.3/getting-started/kubernetes/installation/hosted/kubernetes-datastore/calico-networking/1.7/calico.yaml -O
             
       d.    Find CALICO_IPV4POOL_CIDR in calico.yaml and change the range from 192.168.0.0/16 to the value set for cluster-cidr (10.200.0.0/16)
       
-      e.    
+      e.    kubectl apply -f https://docs.projectcalico.org/v3.3/getting-started/kubernetes/installation/hosted/rbac-kdd.yaml
+      
+      f.    kubectl apply -f calico.yaml
+      
+##    Configure DNS service
+
+      a.    kubectl create -f https://storage.googleapis.com/kubernetes-the-hard-way/kube-dns.yam
+      
+      b.    git clone https://github.com/coredns/deployment.git
+      
+      c.    cd coredns/kubernetes
+      
+      d.    apt-get install jq 
+      
+      e.    ./deploy.sh > coredns.yaml
+      
+      f.    kubectl apply -f coredns.yaml
+      
+      g.    kubectl delete --namespace=kube-system deployment kube-dns
+      
+      
 
 
       
