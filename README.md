@@ -110,8 +110,7 @@ Requirement -6 VM - ubuntu
             
  ##   Generate client certificate for kubelet 
             
-      1.  Create a file nodedetails.txt with details of hostname and private IP address separated by colon
-      2.  Execute the script create_worker_kubelet_certificate.sh against nodedetails.txt to generate certificates for worker nodes. 
+      1.  Execute gencertkubelet.sh from the repository. CHange the worker1 and worker2 details  
       
 ##    Generate client certificate for controller Manager 
             
