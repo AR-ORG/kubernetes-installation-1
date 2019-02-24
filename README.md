@@ -282,6 +282,8 @@ Requirement -6 VM - ubuntu
             
         c.  Make sure to remove the # comments before running the above script. 
         
+        d.  You can execute ./generate_kube_config from this repo. Change the worker names
+        
 ##    Generate kubeconfig for kube-proxy 
 
       a.    Single kube-proxy config will be used for all nodes. 
